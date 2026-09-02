@@ -268,6 +268,7 @@ export default function Dashboard() {
       {addingEntry && (
         <EntryModal
           userId={user.id}
+          householdId={profile?.household_id}
           categories={categories}
           customCurrencies={customCurrencies}
           existing={null}

@@ -9,6 +9,7 @@ create table households (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   invite_code text not null unique default substr(md5(random()::text), 1, 8),
+  created_by uuid references auth.users(id) default auth.uid(),
   created_at timestamptz not null default now()
 );
 
@@ -168,9 +169,20 @@ alter table budgets enable row level security;
 alter table custom_currencies enable row level security;
 alter table transactions enable row level security;
 
--- households: visible to members only
+-- households: visible to your own household, and to yourself as creator
+-- even before you're linked via profiles.household_id (needed so the
+-- INSERT ... RETURNING used right after creation doesn't get blocked by
+-- this same policy - see fix4.sql for the full explanation)
 create policy household_select on households for select
-  using (id in (select household_id from profiles where id = auth.uid()));
+  using (
+    created_by = auth.uid()
+    or id in (select household_id from profiles where id = auth.uid())
+  );
+
+-- anyone logged in can create a new household (they join it separately
+-- via the profiles.household_id update that follows, in the app code)
+create policy household_insert on households for insert
+  with check (auth.uid() is not null);
 
 -- profiles: you can see your own profile, and profiles of people in your household
 create policy profiles_select on profiles for select
