@@ -180,7 +180,7 @@ export default function Dashboard() {
           <div className="section-heading">Operational vs. nonoperational</div>
           <div className="summary-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
             {opGroups.map((g) => (
-              <div key={g.subcategory} className="card" style={{ cursor: 'pointer' }} onClick={() => setDrillCategory({ name: g.subcategory, rows: g.rows })}>
+              <div key={g.subcategory} className="card" style={{ cursor: 'pointer' }} onClick={() => setDrillCategory({ name: g.subcategory, rows: g.rows, showCategory: true })}>
                 <div className="label" style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
                   <span className={`tag ${g.subcategory.toLowerCase()}`}>{g.subcategory}</span>
                 </div>
@@ -199,7 +199,7 @@ export default function Dashboard() {
                 {categoryRows.map((g) => {
                   const varianceVal = g.budgetTotal !== null ? Math.abs(g.actual) - g.budgetTotal : null;
                   return (
-                    <tr key={g.name} onClick={() => setDrillCategory(g)} style={{ cursor: 'pointer' }}>
+                    <tr key={g.name} onClick={() => setDrillCategory({ ...g, showCategory: false })} style={{ cursor: 'pointer' }}>
                       <td>{g.name} <span className={`tag ${g.subcategory.toLowerCase()}`}>{g.subcategory}</span></td>
                       <td className="mono">€{Math.abs(g.actual).toFixed(2)}</td>
                       <td className="mono">{g.budgetTotal !== null ? `€${g.budgetTotal.toFixed(2)}` : '—'}</td>
@@ -247,7 +247,7 @@ export default function Dashboard() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginBottom: 14 }}>{drillCategory.name}</h3>
             <table>
-              <thead><tr><th>Date</th><th>Amount</th><th>Note</th></tr></thead>
+              <thead><tr><th>Date</th><th>Amount</th><th>{drillCategory.showCategory ? 'Category' : 'Note'}</th></tr></thead>
               <tbody>
                 {drillCategory.rows.map((t) => (
                   <tr key={t.id}>
@@ -255,7 +255,9 @@ export default function Dashboard() {
                     <td className={`mono ${t.direction === 'outflow' ? 'negative' : 'positive'}`}>
                       {t.direction === 'outflow' ? '-' : '+'}€{t.amount_eur.toFixed(2)}
                     </td>
-                    <td style={{ color: 'var(--text-dim)' }}>{t.note || '—'}</td>
+                    <td style={{ color: 'var(--text-dim)' }}>
+                      {drillCategory.showCategory ? (t.categories?.name || '—') : (t.note || '—')}
+                    </td>
                   </tr>
                 ))}
               </tbody>
