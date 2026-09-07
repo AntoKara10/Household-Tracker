@@ -11,8 +11,6 @@ export default function MasterData() {
   const [loading, setLoading] = useState(true);
 
   const [newCategory, setNewCategory] = useState({ name: '', subcategory: 'Operational' });
-  const [editingCategoryId, setEditingCategoryId] = useState(null);
-  const [editingCategoryDraft, setEditingCategoryDraft] = useState({ name: '', subcategory: 'Operational' });
   const [newBudget, setNewBudget] = useState({ category_id: '', amount: '', effective_date: toIsoLocal(new Date()) });
   const [newCurrency, setNewCurrency] = useState({ code: '', name: '' });
   const [error, setError] = useState(null);
@@ -47,31 +45,6 @@ export default function MasterData() {
   async function deleteCategory(id) {
     if (!confirm('Delete this category? Existing entries keep their recorded subcategory, but new entries can no longer use it.')) return;
     await supabase.from('categories').delete().eq('id', id);
-    load();
-  }
-
-  function startEditCategory(c) {
-    setEditingCategoryId(c.id);
-    setEditingCategoryDraft({ name: c.name, subcategory: c.subcategory });
-  }
-
-  function cancelEditCategory() {
-    setEditingCategoryId(null);
-  }
-
-  async function saveEditCategory(id) {
-    setError(null);
-    if (!editingCategoryDraft.name.trim()) return;
-    const { error: err } = await supabase.from('categories').update({
-      name: editingCategoryDraft.name.trim(),
-      subcategory: editingCategoryDraft.subcategory,
-    }).eq('id', id);
-    if (err) { setError(err.message); return; }
-    // Note: this changes the category's classification going forward only.
-    // Past transactions keep whatever classification they were saved with
-    // (subcategory_snapshot), so historical Operational/Nonoperational
-    // reporting on the dashboard is unaffected by this edit.
-    setEditingCategoryId(null);
     load();
   }
 
@@ -126,41 +99,14 @@ export default function MasterData() {
       {/* ---- Categories ---- */}
       <div className="section-heading">Categories</div>
       <div className="card">
-        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 0 }}>
-          Set a category to "Unclassified" if you don't want it counted in the Operational/Nonoperational split at
-          all (e.g. income you'd rather just see under the top summary). Editing a classification only applies
-          going forward - past entries keep whatever classification they were saved with.
-        </p>
         <table>
           <thead><tr><th>Name</th><th>Classification</th><th></th></tr></thead>
           <tbody>
             {categories.map((c) => (
               <tr key={c.id}>
-                {editingCategoryId === c.id ? (
-                  <>
-                    <td><input value={editingCategoryDraft.name} onChange={(e) => setEditingCategoryDraft((d) => ({ ...d, name: e.target.value }))} /></td>
-                    <td>
-                      <select value={editingCategoryDraft.subcategory} onChange={(e) => setEditingCategoryDraft((d) => ({ ...d, subcategory: e.target.value }))}>
-                        <option value="Operational">Operational</option>
-                        <option value="Nonoperational">Nonoperational</option>
-                        <option value="Unclassified">Unclassified</option>
-                      </select>
-                    </td>
-                    <td style={{ display: 'flex', gap: 6 }}>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => saveEditCategory(c.id)}>Save</button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={cancelEditCategory}>Cancel</button>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td>{c.name}</td>
-                    <td><span className={`tag ${c.subcategory.toLowerCase()}`}>{c.subcategory}</span></td>
-                    <td style={{ display: 'flex', gap: 6 }}>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => startEditCategory(c)}>Edit</button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => deleteCategory(c.id)}>Remove</button>
-                    </td>
-                  </>
-                )}
+                <td>{c.name}</td>
+                <td><span className={`tag ${c.subcategory.toLowerCase()}`}>{c.subcategory}</span></td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => deleteCategory(c.id)}>Remove</button></td>
               </tr>
             ))}
           </tbody>
@@ -175,7 +121,6 @@ export default function MasterData() {
             <select value={newCategory.subcategory} onChange={(e) => setNewCategory((n) => ({ ...n, subcategory: e.target.value }))}>
               <option value="Operational">Operational</option>
               <option value="Nonoperational">Nonoperational</option>
-              <option value="Unclassified">Unclassified</option>
             </select>
           </div>
           <button type="submit" className="btn btn-primary">Add</button>

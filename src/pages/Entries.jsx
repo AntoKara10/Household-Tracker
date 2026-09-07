@@ -5,7 +5,7 @@ import EntryModal from '../components/EntryModal.jsx';
 import { exportToCsv } from '../utils/csv';
 
 export default function Entries() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [customCurrencies, setCustomCurrencies] = useState([]);
@@ -92,7 +92,6 @@ export default function Entries() {
       {editing && (
         <EntryModal
           userId={user.id}
-          householdId={profile?.household_id}
           categories={categories}
           customCurrencies={customCurrencies}
           existing={editing === 'new' ? null : editing}

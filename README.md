@@ -31,31 +31,20 @@ This is an **online-only** app: writes require a live connection to Supabase (no
 If offline entry capture at the point of purchase becomes something you actually need, that requires adding an
 IndexedDB write-queue with background sync, which is a separate, non-trivial piece of work not included here.
 
-## Connecting to Supabase
-
-FlowTrack no longer bakes Supabase credentials in at build time. Instead, the first time the app loads on any
-device, it shows a connection screen asking for your Project URL and anon key (Project Settings → API in
-Supabase). This is stored in that browser's `localStorage` and only asked once per device — it gives you control
-over who can actually use a deployed instance, since without the correct project details the app won't connect
-to anything. There's a "Connect to a different Supabase project" link on the login screen if you ever need to
-reset this on a given device.
-
 ## Setup
 
 1. **Create a Supabase project** at supabase.com.
 2. In the SQL editor, run `supabase/schema.sql` in full. This creates all tables, RLS policies, the
    `join_household` RPC, and the trigger that seeds default categories for new signups.
-3. Install and run locally:
+3. Copy `.env.example` to `.env` and fill in your project's URL and anon key (Project Settings → API).
+4. Install and run:
    ```bash
    npm install
    npm run dev
    ```
-   On first load, you'll be asked for your Project URL and anon key (Project Settings → API) — enter them there,
-   no `.env` file needed.
-4. To deploy: push to a Git repo, connect it in Netlify (Add new site → Import an existing project). Build
-   settings are already defined in `netlify.toml` (build command `npm run build`, publish directory `dist`) —
-   no environment variables need to be set in Netlify, since the connection now happens in-browser after
-   deploy, not at build time.
+5. To deploy: push to a Git repo, connect it in Netlify, and set the same `VITE_SUPABASE_URL` /
+   `VITE_SUPABASE_ANON_KEY` as environment variables in the Netlify site settings (Site configuration →
+   Environment variables). `netlify.toml` is already configured for the build.
 
 ## Icons
 

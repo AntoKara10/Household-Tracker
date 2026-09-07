@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { clearStoredConfig } from '../lib/config';
 
 export default function Login() {
   const [mode, setMode] = useState('sign_in'); // 'sign_in' | 'sign_up'
@@ -68,15 +67,6 @@ export default function Login() {
           onClick={() => setMode(mode === 'sign_up' ? 'sign_in' : 'sign_up')}
         >
           {mode === 'sign_up' ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-ghost"
-          style={{ width: '100%', marginTop: 10, fontSize: 12, color: 'var(--text-dim)' }}
-          onClick={() => { clearStoredConfig(); window.location.reload(); }}
-        >
-          Connect to a different Supabase project
         </button>
       </form>
     </div>

@@ -5,7 +5,7 @@ import { toIsoLocal } from '../utils/dates';
 const BASE_CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY'];
 const TYPES = ['Cash', 'Card', 'Wire', 'Other'];
 
-export default function EntryModal({ userId, householdId, categories, customCurrencies, existing, onClose, onSaved }) {
+export default function EntryModal({ userId, categories, customCurrencies, existing, onClose, onSaved }) {
   const [form, setForm] = useState(() => existing ? {
     entry_date: existing.entry_date,
     amount: existing.amount,
@@ -57,10 +57,6 @@ export default function EntryModal({ userId, householdId, categories, customCurr
       setError('Describe the "Other" payment type.');
       return;
     }
-    if (form.visibility === 'household' && !householdId) {
-      setError('You need to join or create a household before sharing an entry with one.');
-      return;
-    }
 
     setSaving(true);
     const amount = Number(form.amount);
@@ -80,11 +76,6 @@ export default function EntryModal({ userId, householdId, categories, customCurr
       subcategory_snapshot: selectedCategory?.subcategory,
       note: form.note.trim() || null,
       visibility: form.visibility,
-      // Recomputed from the current form state every save, whether
-      // creating a new entry or editing one - this is what makes
-      // switching an entry between private <-> household work correctly,
-      // in either direction, at edit time.
-      household_id: form.visibility === 'household' ? householdId : null,
     };
 
     let err;
@@ -158,7 +149,7 @@ export default function EntryModal({ userId, householdId, categories, customCurr
             <label>Visibility</label>
             <select value={form.visibility} onChange={(e) => update('visibility', e.target.value)}>
               <option value="private">Private</option>
-              {householdId && <option value="household">Household</option>}
+              <option value="household">Household</option>
             </select>
           </div>
         </div>
