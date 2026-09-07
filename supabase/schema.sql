@@ -9,6 +9,7 @@ create table households (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   invite_code text not null unique default substr(md5(random()::text), 1, 8),
+  created_by uuid references auth.users(id) default auth.uid(),
   created_at timestamptz not null default now()
 );
 
@@ -28,7 +29,7 @@ create table categories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
-  subcategory text not null check (subcategory in ('Operational', 'Nonoperational')),
+  subcategory text not null check (subcategory in ('Operational', 'Nonoperational', 'Unclassified')),
   is_default boolean not null default false,
   created_at timestamptz not null default now(),
   unique (user_id, name)
@@ -88,7 +89,11 @@ create table transactions (
   type_other_description text,                              -- only used when type = 'Other'
 
   category_id uuid references categories(id) on delete set null,
-  subcategory_snapshot text not null check (subcategory_snapshot in ('Operational', 'Nonoperational')),
+  -- Snapshot of the category name at entry time - required so the name
+  -- displays correctly for OTHER household members too, since `categories`
+  -- is a per-user table they don't have read access to (see fix5.sql).
+  category_name_snapshot text,
+  subcategory_snapshot text not null check (subcategory_snapshot in ('Operational', 'Nonoperational', 'Unclassified')),
   note text,
 
   visibility text not null default 'private' check (visibility in ('private', 'household')),
@@ -118,8 +123,8 @@ for each row execute function set_updated_at();
 create or replace function seed_default_categories(p_user_id uuid) returns void as $$
 begin
   insert into categories (user_id, name, subcategory, is_default) values
-    (p_user_id, 'Salary',                  'Operational',    true),
-    (p_user_id, 'Other Income',             'Nonoperational', true),
+    (p_user_id, 'Salary',                  'Unclassified',   true),
+    (p_user_id, 'Other Income',             'Unclassified',   true),
     (p_user_id, 'Groceries',                'Operational',    true),
     (p_user_id, 'Food',                     'Operational',    true),
     (p_user_id, 'Car',                      'Operational',    true),
@@ -142,11 +147,21 @@ begin
   perform seed_default_categories(new.id);
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function handle_new_user();
+
+-- Looks up the current user's household_id while bypassing RLS (security
+-- definer). Used inside RLS policies below instead of a raw subquery on
+-- `profiles`, because profiles has its own RLS policy - a subquery
+-- referencing profiles from within profiles' own policy causes Postgres
+-- to detect infinite recursion (error 42P17 / "infinite recursion
+-- detected in policy").
+create or replace function my_household_id() returns uuid as $$
+  select household_id from profiles where id = auth.uid();
+$$ language sql security definer stable set search_path = public;
 
 -- ============================================================
 -- ROW LEVEL SECURITY
@@ -158,13 +173,24 @@ alter table budgets enable row level security;
 alter table custom_currencies enable row level security;
 alter table transactions enable row level security;
 
--- households: visible to members only
+-- households: visible to your own household, and to yourself as creator
+-- even before you're linked via profiles.household_id (needed so the
+-- INSERT ... RETURNING used right after creation doesn't get blocked by
+-- this same policy - see fix4.sql for the full explanation)
 create policy household_select on households for select
-  using (id in (select household_id from profiles where id = auth.uid()));
+  using (
+    created_by = auth.uid()
+    or id in (select household_id from profiles where id = auth.uid())
+  );
+
+-- anyone logged in can create a new household (they join it separately
+-- via the profiles.household_id update that follows, in the app code)
+create policy household_insert on households for insert
+  with check (auth.uid() is not null);
 
 -- profiles: you can see your own profile, and profiles of people in your household
 create policy profiles_select on profiles for select
-  using (id = auth.uid() or household_id = (select household_id from profiles where id = auth.uid()));
+  using (id = auth.uid() or household_id = my_household_id());
 create policy profiles_update_own on profiles for update
   using (id = auth.uid());
 
@@ -186,7 +212,7 @@ create policy transactions_select on transactions for select
     or (
       visibility = 'household'
       and household_id is not null
-      and household_id = (select household_id from profiles where id = auth.uid())
+      and household_id = my_household_id()
     )
   );
 create policy transactions_insert on transactions for insert
@@ -210,4 +236,4 @@ begin
   update profiles set household_id = v_household_id where id = auth.uid();
   return v_household_id;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;

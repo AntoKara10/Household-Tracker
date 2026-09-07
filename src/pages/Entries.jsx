@@ -5,7 +5,7 @@ import EntryModal from '../components/EntryModal.jsx';
 import { exportToCsv } from '../utils/csv';
 
 export default function Entries() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [customCurrencies, setCustomCurrencies] = useState([]);
@@ -15,7 +15,7 @@ export default function Entries() {
   const load = useCallback(async () => {
     setLoading(true);
     const [{ data: tx }, { data: cats }, { data: curr }] = await Promise.all([
-      supabase.from('transactions').select('*, categories(name)').eq('user_id', user.id).order('entry_date', { ascending: false }),
+      supabase.from('transactions').select('*').eq('user_id', user.id).order('entry_date', { ascending: false }),
       supabase.from('categories').select('*').eq('user_id', user.id).order('name'),
       supabase.from('custom_currencies').select('*').eq('user_id', user.id),
     ]);
@@ -37,7 +37,7 @@ export default function Entries() {
       amount_eur: e.amount_eur,
       type: e.type,
       type_other_description: e.type_other_description,
-      category: e.categories?.name,
+      category: e.category_name_snapshot,
       subcategory: e.subcategory_snapshot,
       note: e.note,
       visibility: e.visibility,
@@ -73,7 +73,7 @@ export default function Entries() {
                 <tr key={e.id} onClick={() => setEditing(e)} style={{ cursor: 'pointer' }}>
                   <td className="mono">{e.entry_date}</td>
                   <td>
-                    {e.categories?.name || '—'}{' '}
+                    {e.category_name_snapshot || '—'}{' '}
                     <span className={`tag ${e.subcategory_snapshot?.toLowerCase()}`}>{e.subcategory_snapshot}</span>
                   </td>
                   <td>{e.type}{e.type === 'Other' ? ` (${e.type_other_description})` : ''}</td>
@@ -92,6 +92,7 @@ export default function Entries() {
       {editing && (
         <EntryModal
           userId={user.id}
+          householdId={profile?.household_id}
           categories={categories}
           customCurrencies={customCurrencies}
           existing={editing === 'new' ? null : editing}

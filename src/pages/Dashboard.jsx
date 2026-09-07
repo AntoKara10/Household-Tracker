@@ -37,7 +37,7 @@ export default function Dashboard() {
     setBudgets(bgts || []);
     setCustomCurrencies(curr || []);
 
-    let txQuery = supabase.from('transactions').select('*, categories(name)')
+    let txQuery = supabase.from('transactions_display').select('*')
       .gte('entry_date', range.start).lte('entry_date', range.end);
     // 'mine': only my rows. 'household': RLS already includes my rows +
     // other members' household-flagged rows, so no extra filter needed.
@@ -71,14 +71,43 @@ export default function Dashboard() {
   // across members by trimmed/case-insensitive category name - not a
   // shared row. See warning banner below.
   const categoryRows = useMemo(() => {
+    // Seed one group per *your* category (needed for subcategory tag +
+    // budget matching, both of which are your own master data).
     const byName = new Map();
     for (const c of categories) {
       const key = c.name.trim().toLowerCase();
-      if (!byName.has(key)) byName.set(key, { name: c.name, subcategory: c.subcategory, categoryIds: [] });
-      byName.get(key).categoryIds.push(c.id);
+      if (!byName.has(key)) byName.set(key, { name: c.name, subcategory: c.subcategory, categoryIds: [c.id] });
+      else byName.get(key).categoryIds.push(c.id);
     }
-    return Array.from(byName.values()).map((group) => {
-      const rows = transactions.filter((t) => group.categoryIds.includes(t.category_id));
+
+    // Group transactions by their NAME SNAPSHOT, not by category_id -
+    // a household member's entry has a category_id pointing at their own
+    // categories row, which will never match yours even when the name is
+    // identical. Matching by (trimmed, case-insensitive) name is how
+    // household aggregation was designed to work (see the warning banner
+    // shown in Household view).
+    const rowsByKey = new Map();
+    for (const t of transactions) {
+      const key = (t.category_name_snapshot || '').trim().toLowerCase();
+      if (!rowsByKey.has(key)) rowsByKey.set(key, []);
+      rowsByKey.get(key).push(t);
+    }
+
+    // Categories only a household member has (not you) still need a row -
+    // otherwise their entries would silently vanish from this table.
+    for (const key of rowsByKey.keys()) {
+      if (!byName.has(key)) {
+        const sampleRow = rowsByKey.get(key)[0];
+        byName.set(key, {
+          name: sampleRow.category_name_snapshot || 'Uncategorized',
+          subcategory: sampleRow.subcategory_snapshot,
+          categoryIds: [], // no budget can be matched - it's not your master data
+        });
+      }
+    }
+
+    return Array.from(byName.entries()).map(([key, group]) => {
+      const rows = rowsByKey.get(key) || [];
       const actual = rows.reduce((s, t) => s + (t.direction === 'outflow' ? -t.amount_eur : t.amount_eur), 0);
       const direction = rows[0]?.direction || (group.subcategory === 'Operational' && group.name.match(/salary|income/i) ? 'inflow' : 'outflow');
       const budgetsForGroup = budgets.filter((b) => group.categoryIds.includes(b.category_id));
@@ -247,7 +276,7 @@ export default function Dashboard() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginBottom: 14 }}>{drillCategory.name}</h3>
             <table>
-              <thead><tr><th>Date</th><th>Amount</th><th>Note</th></tr></thead>
+              <thead><tr><th>Date</th><th>Amount</th><th>Category</th></tr></thead>
               <tbody>
                 {drillCategory.rows.map((t) => (
                   <tr key={t.id}>
@@ -255,7 +284,7 @@ export default function Dashboard() {
                     <td className={`mono ${t.direction === 'outflow' ? 'negative' : 'positive'}`}>
                       {t.direction === 'outflow' ? '-' : '+'}€{t.amount_eur.toFixed(2)}
                     </td>
-                    <td style={{ color: 'var(--text-dim)' }}>{t.note || '—'}</td>
+                    <td style={{ color: 'var(--text-dim)' }}>{t.category_name_snapshot || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -268,6 +297,7 @@ export default function Dashboard() {
       {addingEntry && (
         <EntryModal
           userId={user.id}
+          householdId={profile?.household_id}
           categories={categories}
           customCurrencies={customCurrencies}
           existing={null}
